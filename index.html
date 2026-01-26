@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <meta name="theme-color" content="#16213e">
+  <meta name="description" content="Automatic bird detection and recording using AI">
+
+  <title>Bird Watcher</title>
+
+  <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Camera View -->
+  <div id="camera-view" class="view">
+    <div id="video-container">
+      <canvas id="detection-overlay"></canvas>
+    </div>
+
+    <div class="overlay-top">
+      <div class="status-container">
+        <div id="status-indicator" class="status-indicator idle"></div>
+        <span id="status-text">Initializing...</span>
+      </div>
+      <div id="bird-status" class="bird-status">Not detecting</div>
+      <button id="toggle-btn" class="btn btn-icon toggle-btn">⏸</button>
+    </div>
+
+    <div class="overlay-bottom">
+      <button id="stop-btn" class="btn btn-danger hidden">
+        <span class="icon">⏹</span>
+        <span>Stop & Save</span>
+      </button>
+      <button id="review-btn" class="btn btn-primary">
+        <span class="icon">📁</span>
+        <span>Review</span>
+        <span id="clip-count" class="badge">0</span>
+      </button>
+      <button id="settings-btn" class="btn btn-secondary">
+        <span class="icon">⚙</span>
+      </button>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" class="settings-panel hidden">
+      <div class="settings-content">
+        <div class="settings-header">
+          <h2>Settings</h2>
+          <button id="close-settings-btn" class="btn btn-icon">✕</button>
+        </div>
+        <div class="settings-body">
+          <div class="setting-row">
+            <label for="show-logs">Show debug logs</label>
+            <input type="checkbox" id="show-logs">
+          </div>
+          <div class="setting-row">
+            <label for="bitrate">Video bitrate</label>
+            <select id="bitrate">
+              <option value="1000000">1 Mbps (~7 MB/min)</option>
+              <option value="2500000" selected>2.5 Mbps (~18 MB/min)</option>
+              <option value="5000000">5 Mbps (~37 MB/min)</option>
+              <option value="8000000">8 Mbps (~60 MB/min)</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label for="sensitivity">Detection sensitivity</label>
+            <select id="sensitivity">
+              <option value="0.15">Very high (more false positives)</option>
+              <option value="0.25">High</option>
+              <option value="0.35" selected>Medium</option>
+              <option value="0.50">Low (only obvious birds)</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label for="detection-zoom">Detection zoom</label>
+            <select id="detection-zoom">
+              <option value="1" selected>1x (full frame)</option>
+              <option value="1.5">1.5x (center crop)</option>
+              <option value="2">2x (center crop)</option>
+              <option value="3">3x (center crop)</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label>Clear cache & reload [dev only]</label>
+            <button id="clear-cache-btn" class="btn btn-secondary btn-small">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Review View -->
+  <div id="review-view" class="view hidden">
+    <header class="header">
+      <button id="back-btn" class="btn btn-icon">←</button>
+      <h1>Recorded Clips</h1>
+      <span id="storage-info" class="storage-info">0 clips</span>
+    </header>
+
+    <div id="clips-grid" class="clips-grid">
+      <p class="empty-message">No clips recorded yet</p>
+    </div>
+  </div>
+
+  <!-- Player View -->
+  <div id="player-view" class="view hidden">
+    <header class="header">
+      <button id="close-player-btn" class="btn btn-icon">←</button>
+      <h1>Playback</h1>
+    </header>
+
+    <div class="player-container">
+      <video id="video-player" controls playsinline></video>
+    </div>
+
+    <div class="player-actions">
+      <button id="download-btn" class="btn btn-secondary">
+        <span class="icon">⬇</span> Download
+      </button>
+      <button id="delete-btn" class="btn btn-danger">
+        <span class="icon">🗑</span> Delete
+      </button>
+    </div>
+  </div>
+
+  <!-- Welcome Popup -->
+  <div id="welcome-popup" class="welcome-popup hidden">
+    <div class="welcome-content">
+      <h2>Welcome to Bird Watcher</h2>
+      <div class="welcome-body">
+        <p><strong>How it works:</strong></p>
+        <ul>
+          <li>Point your camera at a bird feeder</li>
+          <li>App auto-detects birds using AI</li>
+          <li>Recording starts when a bird appears</li>
+          <li>Stops 10 seconds after bird leaves</li>
+        </ul>
+        <p><strong>Privacy:</strong></p>
+        <ul>
+          <li>Completely local - nothing sent to servers</li>
+          <li>Videos saved on your phone only</li>
+          <li>Save to Photos from the Review page</li>
+        </ul>
+        <p><strong>Tips:</strong></p>
+        <ul>
+          <li>Drag the detection zone to your feeder</li>
+          <li>If birds are too small to detect, increase detection zoom in Settings</li>
+          <li>Tap pause button to stop detecting</li>
+        </ul>
+      </div>
+      <button id="welcome-close-btn" class="btn btn-primary">Got it!</button>
+    </div>
+  </div>
+
+  <!-- TensorFlow.js and COCO-SSD from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+
+  <!-- App modules -->
+  <script type="module" src="src/app.js"></script>
+
+  <!-- Service Worker Registration (disabled for dev) -->
+  <script>
+    // Unregister any existing service worker for dev
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister());
+      });
+    }
+  </script>
+</body>
+</html>
