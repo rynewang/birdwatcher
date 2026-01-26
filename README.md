@@ -1,5 +1,7 @@
 # Bird Watcher PWA
 
+<img src="icons/icon-192.png" alt="Bird Watcher icon" width="96">
+
 A Progressive Web App that uses TensorFlow.js COCO-SSD to automatically detect and record birds visiting your bird feeder.
 
 ## Features
