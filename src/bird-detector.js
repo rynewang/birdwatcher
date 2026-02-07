@@ -107,6 +107,9 @@ export class BirdDetector {
 
         const predictions = await this.model.detect(this.tileCanvas);
 
+        // Yield to event loop between tiles to prevent UI freeze
+        await new Promise(resolve => setTimeout(resolve, 0));
+
         // Map bbox back to full-frame coordinates
         for (const pred of predictions) {
           if (this.targetClasses.includes(pred.class) &&

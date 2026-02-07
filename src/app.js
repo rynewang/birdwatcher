@@ -157,8 +157,14 @@ class App {
   }
 
   startDetection() {
+    this._detectRunning = false;
     this.detectionInterval = setInterval(
-      () => this.detectionLoop(),
+      () => {
+        // Skip if previous detection cycle is still running
+        if (this._detectRunning) return;
+        this._detectRunning = true;
+        this.detectionLoop().finally(() => { this._detectRunning = false; });
+      },
       CONFIG.DETECTION_INTERVAL
     );
   }
