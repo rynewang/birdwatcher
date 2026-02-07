@@ -9,9 +9,6 @@ export class UI {
       showLogs: false,
       bitrate: 2500000,
       sensitivity: 0.35,
-      detectionZoom: 1,
-      detectionOffsetX: 0.5,  // 0-1, center of crop region as % of frame
-      detectionOffsetY: 0.5,
     };
   }
 
@@ -53,7 +50,6 @@ export class UI {
       showLogsCheckbox: document.getElementById('show-logs'),
       bitrateSelect: document.getElementById('bitrate'),
       sensitivitySelect: document.getElementById('sensitivity'),
-      detectionZoomSelect: document.getElementById('detection-zoom'),
       clearCacheBtn: document.getElementById('clear-cache-btn'),
 
       // Welcome popup
@@ -381,9 +377,6 @@ export class UI {
     if (this.elements.sensitivitySelect) {
       this.elements.sensitivitySelect.value = this.settings.sensitivity;
     }
-    if (this.elements.detectionZoomSelect) {
-      this.elements.detectionZoomSelect.value = this.settings.detectionZoom;
-    }
   }
 
   /**
@@ -432,14 +425,6 @@ export class UI {
   }
 
   /**
-   * Get current detection zoom setting
-   * @returns {number}
-   */
-  getDetectionZoom() {
-    return this.settings.detectionZoom;
-  }
-
-  /**
    * Show welcome popup if first visit
    */
   showWelcomeIfFirstVisit() {
@@ -458,28 +443,6 @@ export class UI {
     } catch (e) {
       // Ignore localStorage errors
     }
-  }
-
-  /**
-   * Get detection region offset (0-1 normalized)
-   * @returns {{ x: number, y: number }}
-   */
-  getDetectionOffset() {
-    return {
-      x: this.settings.detectionOffsetX,
-      y: this.settings.detectionOffsetY,
-    };
-  }
-
-  /**
-   * Set detection region offset
-   * @param {number} x - 0-1 normalized
-   * @param {number} y - 0-1 normalized
-   */
-  setDetectionOffset(x, y) {
-    this.settings.detectionOffsetX = Math.max(0, Math.min(1, x));
-    this.settings.detectionOffsetY = Math.max(0, Math.min(1, y));
-    this.saveSettings();
   }
 
   /**
@@ -545,7 +508,7 @@ export class UI {
       });
     }
 
-    const { sensitivitySelect, detectionZoomSelect } = this.elements;
+    const { sensitivitySelect } = this.elements;
 
     if (sensitivitySelect) {
       sensitivitySelect.addEventListener('change', (e) => {
@@ -553,16 +516,6 @@ export class UI {
         this.saveSettings();
         if (handlers.sensitivityChange) {
           handlers.sensitivityChange(this.settings.sensitivity);
-        }
-      });
-    }
-
-    if (detectionZoomSelect) {
-      detectionZoomSelect.addEventListener('change', (e) => {
-        this.settings.detectionZoom = parseFloat(e.target.value);
-        this.saveSettings();
-        if (handlers.detectionZoomChange) {
-          handlers.detectionZoomChange(this.settings.detectionZoom);
         }
       });
     }

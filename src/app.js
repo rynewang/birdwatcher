@@ -44,7 +44,6 @@ class App {
       // Initialize bird detector with settings
       this.birdDetector = new BirdDetector({
         confidenceThreshold: this.ui.getSensitivity(),
-        zoom: this.ui.getDetectionZoom(),
       });
 
       // Set up UI event handlers
@@ -64,11 +63,6 @@ class App {
         sensitivityChange: (sensitivity) => {
           if (this.birdDetector) {
             this.birdDetector.setSensitivity(sensitivity);
-          }
-        },
-        detectionZoomChange: (zoom) => {
-          if (this.birdDetector) {
-            this.birdDetector.setZoom(zoom);
           }
         },
       });
@@ -113,93 +107,8 @@ class App {
     this.overlayCanvas = document.getElementById('detection-overlay');
     this.overlayCtx = this.overlayCanvas.getContext('2d');
 
-    // Set up drag handling for detection region (only once)
-    if (!this.dragSetup) {
-      this.setupDetectionRegionDrag();
-      this.dragSetup = true;
-    }
-
     // Initialize recorder with bitrate from settings
     this.recorder = new Recorder(stream, { bitrate: this.ui.getBitrate() });
-  }
-
-  setupDetectionRegionDrag() {
-    let isDragging = false;
-    let startX, startY;
-    let startOffsetX, startOffsetY;
-
-    const getEventPos = (e) => {
-      const rect = this.overlayCanvas.getBoundingClientRect();
-      const scaleX = this.overlayCanvas.width / rect.width;
-      const scaleY = this.overlayCanvas.height / rect.height;
-
-      if (e.touches) {
-        return {
-          x: (e.touches[0].clientX - rect.left) * scaleX,
-          y: (e.touches[0].clientY - rect.top) * scaleY,
-        };
-      }
-      return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY,
-      };
-    };
-
-    const onStart = (e) => {
-      const pos = getEventPos(e);
-      const { cropX, cropY, cropW, cropH } = this.getDetectionRegion();
-
-      // Check if touch is inside detection region
-      if (pos.x >= cropX && pos.x <= cropX + cropW &&
-          pos.y >= cropY && pos.y <= cropY + cropH) {
-        isDragging = true;
-        startX = pos.x;
-        startY = pos.y;
-        const offset = this.ui.getDetectionOffset();
-        startOffsetX = offset.x;
-        startOffsetY = offset.y;
-        e.preventDefault();
-      }
-    };
-
-    const onMove = (e) => {
-      if (!isDragging) return;
-      e.preventDefault();
-
-      const pos = getEventPos(e);
-      const w = this.overlayCanvas.width;
-      const h = this.overlayCanvas.height;
-      const zoom = this.ui.getDetectionZoom();
-
-      const cropW = w / zoom;
-      const cropH = h / zoom;
-      const maxOffsetX = w - cropW;
-      const maxOffsetY = h - cropH;
-
-      if (maxOffsetX > 0 && maxOffsetY > 0) {
-        const deltaX = (pos.x - startX) / maxOffsetX;
-        const deltaY = (pos.y - startY) / maxOffsetY;
-
-        this.ui.setDetectionOffset(
-          startOffsetX + deltaX,
-          startOffsetY + deltaY
-        );
-      }
-    };
-
-    const onEnd = () => {
-      isDragging = false;
-    };
-
-    // Mouse events
-    this.overlayCanvas.addEventListener('mousedown', onStart);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onEnd);
-
-    // Touch events
-    this.overlayCanvas.addEventListener('touchstart', onStart, { passive: false });
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onEnd);
   }
 
   updateOverlaySize() {
@@ -207,22 +116,6 @@ class App {
       this.overlayCanvas.width = this.video.videoWidth;
       this.overlayCanvas.height = this.video.videoHeight;
     }
-  }
-
-  getDetectionRegion() {
-    const w = this.overlayCanvas?.width || 1;
-    const h = this.overlayCanvas?.height || 1;
-    const zoom = this.ui.getDetectionZoom();
-    const offset = this.ui.getDetectionOffset();
-
-    const cropW = w / zoom;
-    const cropH = h / zoom;
-    const maxOffsetX = w - cropW;
-    const maxOffsetY = h - cropH;
-    const cropX = offset.x * maxOffsetX;
-    const cropY = offset.y * maxOffsetY;
-
-    return { cropX, cropY, cropW, cropH };
   }
 
   drawDetections(detections) {
@@ -235,20 +128,6 @@ class App {
     const w = this.overlayCanvas.width;
     const h = this.overlayCanvas.height;
     ctx.clearRect(0, 0, w, h);
-
-    // Always draw detection region box
-    const { cropX, cropY, cropW, cropH } = this.getDetectionRegion();
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([10, 5]);
-    ctx.strokeRect(cropX, cropY, cropW, cropH);
-    ctx.setLineDash([]);
-
-    // Label
-    ctx.font = '12px sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.fillText('Detection zone (drag to move)', cropX + 5, cropY + 15);
 
     detections.forEach(det => {
       const [x, y, width, height] = det.bbox;
@@ -272,9 +151,8 @@ class App {
   }
 
   clearDetections() {
-    if (this.overlayCtx) {
-      // Clear and redraw just the detection zone (no bird boxes)
-      this.drawDetections([]);
+    if (this.overlayCtx && this.overlayCanvas) {
+      this.overlayCtx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
     }
   }
 
@@ -302,8 +180,7 @@ class App {
 
     try {
       // Get full detection results with bounding boxes
-      const offset = this.ui.getDetectionOffset();
-      const detections = await this.birdDetector.detect(this.video, offset);
+      const detections = await this.birdDetector.detect(this.video);
       const hasBird = detections.length > 0;
 
       // Draw bounding boxes

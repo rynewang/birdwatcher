@@ -6,13 +6,15 @@ export class BirdDetector {
   constructor(options = {}) {
     this.confidenceThreshold = options.confidenceThreshold ?? CONFIG.BIRD_CONFIDENCE_THRESHOLD;
     this.targetClasses = options.targetClasses ?? CONFIG.DETECTION_CLASSES;
-    this.zoom = options.zoom ?? 1;
+    this.tileGrid = options.tileGrid ?? CONFIG.DETECTION_TILE_GRID;
+    this.tileOverlap = options.tileOverlap ?? CONFIG.DETECTION_TILE_OVERLAP;
+    this.nmsIouThreshold = options.nmsIouThreshold ?? CONFIG.NMS_IOU_THRESHOLD;
     this.model = null;
     this.isLoading = false;
 
-    // Offscreen canvas for zoom cropping
-    this.zoomCanvas = null;
-    this.zoomCtx = null;
+    // Offscreen canvas for tiles
+    this.tileCanvas = null;
+    this.tileCtx = null;
   }
 
   /**
@@ -24,21 +26,12 @@ export class BirdDetector {
   }
 
   /**
-   * Set detection zoom level
-   * @param {number} zoom
-   */
-  setZoom(zoom) {
-    this.zoom = zoom;
-  }
-
-  /**
    * Load the COCO-SSD model
    * @returns {Promise<void>}
    */
   async load() {
     if (this.model) return;
     if (this.isLoading) {
-      // Wait for existing load to complete
       while (this.isLoading) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
@@ -48,7 +41,6 @@ export class BirdDetector {
     this.isLoading = true;
 
     try {
-      // cocoSsd is loaded from CDN and available globally
       if (typeof cocoSsd === 'undefined') {
         throw new Error('COCO-SSD library not loaded. Include it via CDN.');
       }
@@ -61,80 +53,142 @@ export class BirdDetector {
   }
 
   /**
-   * Detect objects in video frame
+   * Detect objects using sliding window over the full frame.
+   * Splits the frame into overlapping tiles, runs detection on each,
+   * then merges results with non-max suppression.
    * @param {HTMLVideoElement|HTMLCanvasElement|HTMLImageElement} source
-   * @param {{ x: number, y: number }} offset - Normalized offset (0-1) for crop center
    * @returns {Promise<Array<{ class: string, score: number, bbox: number[] }>>}
    */
-  async detect(source, offset = { x: 0.5, y: 0.5 }) {
+  async detect(source) {
     if (!this.model) {
       throw new Error('Model not loaded. Call load() first.');
     }
 
-    // Get source dimensions
     const srcWidth = source.videoWidth || source.width;
     const srcHeight = source.videoHeight || source.height;
 
-    let detectSource = source;
-    let cropOffsetX = 0;
-    let cropOffsetY = 0;
-
-    // Apply zoom by cropping at specified offset
-    if (this.zoom > 1) {
-      const cropWidth = srcWidth / this.zoom;
-      const cropHeight = srcHeight / this.zoom;
-
-      // Calculate crop position from normalized offset (0-1)
-      // Clamp so crop region stays within frame
-      const maxOffsetX = srcWidth - cropWidth;
-      const maxOffsetY = srcHeight - cropHeight;
-      cropOffsetX = offset.x * maxOffsetX;
-      cropOffsetY = offset.y * maxOffsetY;
-
-      // Create/resize offscreen canvas
-      if (!this.zoomCanvas) {
-        this.zoomCanvas = document.createElement('canvas');
-        this.zoomCtx = this.zoomCanvas.getContext('2d');
-      }
-      this.zoomCanvas.width = cropWidth;
-      this.zoomCanvas.height = cropHeight;
-
-      // Draw cropped region
-      this.zoomCtx.drawImage(
-        source,
-        cropOffsetX, cropOffsetY, cropWidth, cropHeight,  // source rect
-        0, 0, cropWidth, cropHeight                        // dest rect
-      );
-
-      detectSource = this.zoomCanvas;
+    // Single tile (grid=1): just run on the whole frame
+    if (this.tileGrid <= 1) {
+      const predictions = await this.model.detect(source);
+      return this.filterPredictions(predictions);
     }
 
-    const predictions = await this.model.detect(detectSource);
+    // Multi-tile sliding window
+    const grid = this.tileGrid;
+    const overlap = this.tileOverlap;
 
-    // Filter and adjust bbox coordinates back to original frame
-    return this.filterPredictions(predictions, cropOffsetX, cropOffsetY);
+    // Tile dimensions with overlap
+    const tileW = Math.ceil(srcWidth / (grid - (grid - 1) * overlap));
+    const tileH = Math.ceil(srcHeight / (grid - (grid - 1) * overlap));
+    const stepX = Math.floor(tileW * (1 - overlap));
+    const stepY = Math.floor(tileH * (1 - overlap));
+
+    // Create/resize offscreen canvas for tiles
+    if (!this.tileCanvas) {
+      this.tileCanvas = document.createElement('canvas');
+      this.tileCtx = this.tileCanvas.getContext('2d');
+    }
+    this.tileCanvas.width = tileW;
+    this.tileCanvas.height = tileH;
+
+    const allDetections = [];
+
+    for (let row = 0; row < grid; row++) {
+      for (let col = 0; col < grid; col++) {
+        const sx = Math.min(col * stepX, srcWidth - tileW);
+        const sy = Math.min(row * stepY, srcHeight - tileH);
+
+        // Draw tile
+        this.tileCtx.drawImage(
+          source,
+          sx, sy, tileW, tileH,
+          0, 0, tileW, tileH
+        );
+
+        const predictions = await this.model.detect(this.tileCanvas);
+
+        // Map bbox back to full-frame coordinates
+        for (const pred of predictions) {
+          if (this.targetClasses.includes(pred.class) &&
+              pred.score >= this.confidenceThreshold) {
+            allDetections.push({
+              class: pred.class,
+              score: pred.score,
+              bbox: [
+                pred.bbox[0] + sx,
+                pred.bbox[1] + sy,
+                pred.bbox[2],
+                pred.bbox[3],
+              ],
+            });
+          }
+        }
+      }
+    }
+
+    // Merge overlapping detections
+    return this.nms(allDetections);
   }
 
   /**
-   * Filter predictions for birds above confidence threshold
-   * @param {Array} predictions - Raw COCO-SSD predictions
-   * @param {number} offsetX - X offset to add to bbox (for zoom)
-   * @param {number} offsetY - Y offset to add to bbox (for zoom)
+   * Non-max suppression to merge overlapping detections from tiles
+   * @param {Array} detections
    * @returns {Array}
    */
-  filterPredictions(predictions, offsetX = 0, offsetY = 0) {
+  nms(detections) {
+    if (detections.length === 0) return [];
+
+    // Sort by score descending
+    detections.sort((a, b) => b.score - a.score);
+
+    const kept = [];
+    const suppressed = new Set();
+
+    for (let i = 0; i < detections.length; i++) {
+      if (suppressed.has(i)) continue;
+      kept.push(detections[i]);
+
+      for (let j = i + 1; j < detections.length; j++) {
+        if (suppressed.has(j)) continue;
+        if (detections[i].class === detections[j].class &&
+            this.iou(detections[i].bbox, detections[j].bbox) > this.nmsIouThreshold) {
+          suppressed.add(j);
+        }
+      }
+    }
+
+    return kept;
+  }
+
+  /**
+   * Intersection over union of two bboxes [x, y, w, h]
+   */
+  iou(a, b) {
+    const ax1 = a[0], ay1 = a[1], ax2 = a[0] + a[2], ay2 = a[1] + a[3];
+    const bx1 = b[0], by1 = b[1], bx2 = b[0] + b[2], by2 = b[1] + b[3];
+
+    const ix1 = Math.max(ax1, bx1), iy1 = Math.max(ay1, by1);
+    const ix2 = Math.min(ax2, bx2), iy2 = Math.min(ay2, by2);
+
+    const intersection = Math.max(0, ix2 - ix1) * Math.max(0, iy2 - iy1);
+    const union = a[2] * a[3] + b[2] * b[3] - intersection;
+
+    return union > 0 ? intersection / union : 0;
+  }
+
+  /**
+   * Filter predictions for target classes above confidence threshold
+   * @param {Array} predictions - Raw COCO-SSD predictions
+   * @returns {Array}
+   */
+  filterPredictions(predictions) {
     return predictions.filter(pred =>
       this.targetClasses.includes(pred.class) &&
       pred.score >= this.confidenceThreshold
     ).map(pred => ({
       class: pred.class,
       score: pred.score,
-      bbox: [
-        pred.bbox[0] + offsetX,  // x
-        pred.bbox[1] + offsetY,  // y
-        pred.bbox[2],            // width
-        pred.bbox[3],            // height
-      ],
+      bbox: [...pred.bbox],
     }));
   }
 

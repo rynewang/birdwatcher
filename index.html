@@ -75,15 +75,6 @@
             </select>
           </div>
           <div class="setting-row">
-            <label for="detection-zoom">Detection zoom</label>
-            <select id="detection-zoom">
-              <option value="1" selected>1x (full frame)</option>
-              <option value="1.5">1.5x (center crop)</option>
-              <option value="2">2x (center crop)</option>
-              <option value="3">3x (center crop)</option>
-            </select>
-          </div>
-          <div class="setting-row">
             <label>Clear cache & reload [dev only]</label>
             <button id="clear-cache-btn" class="btn btn-secondary btn-small">Clear</button>
           </div>
@@ -148,7 +139,7 @@
         <p><strong>Tips:</strong></p>
         <ul>
           <li>Drag the detection zone to your feeder</li>
-          <li>If birds are too small to detect, increase detection zoom in Settings</li>
+          <li>Small birds are detected using tiled scanning across the full frame</li>
           <li>Tap pause button to stop detecting</li>
         </ul>
       </div>
