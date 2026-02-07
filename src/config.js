@@ -9,7 +9,7 @@ export const CONFIG = {
   // Bird detection
   BIRD_CONFIDENCE_THRESHOLD: 0.5, // Minimum confidence for bird detection (0-1)
   DETECTION_CLASSES: ['bird'],    // COCO-SSD classes to detect
-  DETECTION_TILE_GRID: 2,         // NxN grid of overlapping tiles (1 = no tiling, 2 = 2x2)
+  DETECTION_TILE_GRID: 3,         // NxN grid of overlapping tiles (1 = no tiling, 2 = 2x2, 3 = 3x3)
   DETECTION_TILE_OVERLAP: 0.25,   // Fraction of overlap between adjacent tiles
   NMS_IOU_THRESHOLD: 0.5,         // IoU threshold for non-max suppression
 

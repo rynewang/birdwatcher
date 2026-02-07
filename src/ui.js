@@ -9,6 +9,7 @@ export class UI {
       showLogs: false,
       bitrate: 2500000,
       sensitivity: 0.35,
+      tileGrid: 3,
     };
   }
 
@@ -50,6 +51,7 @@ export class UI {
       showLogsCheckbox: document.getElementById('show-logs'),
       bitrateSelect: document.getElementById('bitrate'),
       sensitivitySelect: document.getElementById('sensitivity'),
+      tileGridSelect: document.getElementById('tile-grid'),
       clearCacheBtn: document.getElementById('clear-cache-btn'),
 
       // Welcome popup
@@ -377,6 +379,9 @@ export class UI {
     if (this.elements.sensitivitySelect) {
       this.elements.sensitivitySelect.value = this.settings.sensitivity;
     }
+    if (this.elements.tileGridSelect) {
+      this.elements.tileGridSelect.value = this.settings.tileGrid;
+    }
   }
 
   /**
@@ -422,6 +427,10 @@ export class UI {
    */
   getSensitivity() {
     return this.settings.sensitivity;
+  }
+
+  getTileGrid() {
+    return this.settings.tileGrid;
   }
 
   /**
@@ -508,7 +517,7 @@ export class UI {
       });
     }
 
-    const { sensitivitySelect } = this.elements;
+    const { sensitivitySelect, tileGridSelect } = this.elements;
 
     if (sensitivitySelect) {
       sensitivitySelect.addEventListener('change', (e) => {
@@ -516,6 +525,16 @@ export class UI {
         this.saveSettings();
         if (handlers.sensitivityChange) {
           handlers.sensitivityChange(this.settings.sensitivity);
+        }
+      });
+    }
+
+    if (tileGridSelect) {
+      tileGridSelect.addEventListener('change', (e) => {
+        this.settings.tileGrid = parseInt(e.target.value);
+        this.saveSettings();
+        if (handlers.tileGridChange) {
+          handlers.tileGridChange(this.settings.tileGrid);
         }
       });
     }

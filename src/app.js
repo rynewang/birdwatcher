@@ -44,6 +44,7 @@ class App {
       // Initialize bird detector with settings
       this.birdDetector = new BirdDetector({
         confidenceThreshold: this.ui.getSensitivity(),
+        tileGrid: this.ui.getTileGrid(),
       });
 
       // Set up UI event handlers
@@ -63,6 +64,11 @@ class App {
         sensitivityChange: (sensitivity) => {
           if (this.birdDetector) {
             this.birdDetector.setSensitivity(sensitivity);
+          }
+        },
+        tileGridChange: (grid) => {
+          if (this.birdDetector) {
+            this.birdDetector.tileGrid = grid;
           }
         },
       });
