@@ -20,6 +20,7 @@ class App {
     this.recordingStartTime = null;
     this.lastBirdSeenTime = null;
     this.noMoreBirdTimeout = null;
+    this.maxDurationTimeout = null;
     this.stopReason = null;
 
     this.ui = new UI();
@@ -427,6 +428,14 @@ class App {
     // Start timer display
     this.ui.startRecordingTimer();
 
+    // Set max duration auto-stop
+    this.maxDurationTimeout = setTimeout(() => {
+      if (this.state === 'recording') {
+        this.ui.showLog('Max duration reached (' + Math.round(CONFIG.MAX_RECORDING_DURATION / 60000) + 'min), auto-saving...');
+        this.maxDurationAutoStop();
+      }
+    }, CONFIG.MAX_RECORDING_DURATION);
+
     try {
       // Start indefinite recording - we control when it stops
       const blob = await this.recorder.start({ indefinite: true });
@@ -438,10 +447,14 @@ class App {
       this.ui.stopRecordingTimer();
       this.ui.setStatus('stopping');
 
-      // Clear any pending no-bird timeout
+      // Clear any pending timeouts
       if (this.noMoreBirdTimeout) {
         clearTimeout(this.noMoreBirdTimeout);
         this.noMoreBirdTimeout = null;
+      }
+      if (this.maxDurationTimeout) {
+        clearTimeout(this.maxDurationTimeout);
+        this.maxDurationTimeout = null;
       }
 
       // Clear detection overlay
@@ -477,8 +490,19 @@ class App {
         this.state = 'paused';
         this.ui.setStatus('paused');
         this.ui.showLog('Recording complete, now paused');
+      } else if (this.stopReason === 'maxlen') {
+        // Max duration reached - save and go straight back to watching
+        this.state = 'cooldown';
+        this.ui.setStatus('cooldown');
+        this.ui.showLog('Max duration clip saved, resuming detection');
+        setTimeout(() => {
+          if (this.state === 'cooldown') {
+            this.state = 'idle';
+            this.ui.setStatus('idle');
+          }
+        }, CONFIG.COOLDOWN_DURATION);
       } else {
-        // Auto stop - brief cooldown then idle
+        // Auto stop (bird left) - brief cooldown then idle
         this.state = 'cooldown';
         this.ui.setStatus('cooldown');
         this.ui.showLog('Recording complete, entering cooldown');
@@ -497,6 +521,10 @@ class App {
       if (this.noMoreBirdTimeout) {
         clearTimeout(this.noMoreBirdTimeout);
         this.noMoreBirdTimeout = null;
+      }
+      if (this.maxDurationTimeout) {
+        clearTimeout(this.maxDurationTimeout);
+        this.maxDurationTimeout = null;
       }
       this.state = 'idle';
       this.ui.setStatus('idle');
@@ -524,6 +552,16 @@ class App {
     this.ui.setStatus('stopping');
     this.stopReason = 'manual';
     this.recorder.stop(); // This resolves the promise in startRecording
+  }
+
+  // Auto stop when max recording duration reached
+  maxDurationAutoStop() {
+    if (this.state !== 'recording') return;
+    this.ui.showLog('Max duration auto-stop');
+    this.state = 'stopping';
+    this.ui.setStatus('stopping');
+    this.stopReason = 'maxlen';
+    this.recorder.stop();
   }
 
   // Auto stop when bird leaves

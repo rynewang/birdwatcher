@@ -16,6 +16,7 @@ export const CONFIG = {
   // Recording
   RECORDING_DURATION: 10000,      // Recording duration in ms (10 seconds)
   NO_BIRD_GRACE_PERIOD: 10000,    // Stop recording after no bird for this long (10 seconds)
+  MAX_RECORDING_DURATION: 600000, // Max recording length in ms (10 minutes), then auto-save
   COOLDOWN_DURATION: 2000,        // Brief cooldown after recording before watching again
   VIDEO_MIME_TYPE: 'video/webm;codecs=vp9',
 
