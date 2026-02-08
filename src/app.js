@@ -86,6 +86,9 @@ class App {
       await this.birdDetector.load();
       console.log('Model loaded, starting detection');
 
+      // Draw initial silhouette
+      this.clearDetections();
+
       // Start detection loop
       this.startDetection();
 
@@ -275,6 +278,7 @@ class App {
 
   clearDetections() {
     if (this.overlayCtx && this.overlayCanvas) {
+      this.updateOverlaySize();
       const w = this.overlayCanvas.width;
       const h = this.overlayCanvas.height;
       this.overlayCtx.clearRect(0, 0, w, h);
