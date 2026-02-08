@@ -165,12 +165,16 @@
   <!-- App modules -->
   <script type="module" src="src/app.js"></script>
 
-  <!-- Service Worker Registration (disabled for dev) -->
   <script>
-    // Unregister any existing service worker for dev
+    // Force update: unregister old service workers and re-register with cache-busting
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(regs => {
         regs.forEach(reg => reg.unregister());
+      }).then(() => {
+        // Re-register with updateViaCache: 'none' to bypass HTTP cache for sw.js
+        navigator.serviceWorker.register('/birdwatcher/sw.js', {
+          updateViaCache: 'none'
+        });
       });
     }
   </script>
