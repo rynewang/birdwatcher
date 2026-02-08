@@ -120,12 +120,14 @@ class App {
     this.overlayCanvas = document.getElementById('detection-overlay');
     this.overlayCtx = this.overlayCanvas.getContext('2d');
 
-    // Initialize zoom
+    // Initialize zoom (hardware if available, software fallback)
     this.zoomCapabilities = getZoomCapabilities(stream);
-    if (this.zoomCapabilities.supported) {
-      this.currentZoom = this.zoomCapabilities.current;
-      this.setupPinchToZoom();
-    }
+    this.currentZoom = this.zoomCapabilities.supported ? this.zoomCapabilities.current : 1;
+    this.maxZoom = this.zoomCapabilities.supported ? this.zoomCapabilities.max : 5;
+    this.minZoom = this.zoomCapabilities.supported ? this.zoomCapabilities.min : 1;
+    this.useHardwareZoom = this.zoomCapabilities.supported;
+    console.log('Zoom capabilities:', this.zoomCapabilities);
+    this.setupPinchToZoom();
 
     // Initialize recorder with bitrate from settings
     this.recorder = new Recorder(stream, { bitrate: this.ui.getBitrate() });
@@ -155,8 +157,7 @@ class App {
         e.preventDefault();
         const dist = this.getTouchDistance(e.touches);
         const scale = dist / this.pinchStartDistance;
-        const { min, max } = this.zoomCapabilities;
-        const newZoom = Math.max(min, Math.min(max, this.pinchStartZoom * scale));
+        const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.pinchStartZoom * scale));
         this.applyZoom(newZoom);
       }
     }, { passive: false });
@@ -174,10 +175,17 @@ class App {
   }
 
   async applyZoom(zoom) {
-    if (!this.stream) return;
-    const ok = await setZoom(this.stream, zoom);
-    if (ok) {
-      this.currentZoom = zoom;
+    this.currentZoom = zoom;
+
+    if (this.useHardwareZoom && this.stream) {
+      await setZoom(this.stream, zoom);
+    } else {
+      // Software zoom: scale the video element via CSS transform
+      const videoEl = this.video;
+      if (videoEl) {
+        videoEl.style.transform = `scale(${zoom})`;
+        videoEl.style.transformOrigin = 'center center';
+      }
     }
   }
 
@@ -237,6 +245,15 @@ class App {
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.fillText('min size', cx, cy + bh * 0.55);
+
+    // Show current zoom level if zoomed
+    if (this.currentZoom > 1.05) {
+      ctx.globalAlpha = 0.5;
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${this.currentZoom.toFixed(1)}×`, 10, h - 10);
+    }
 
     ctx.restore();
   }
