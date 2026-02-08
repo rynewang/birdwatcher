@@ -87,6 +87,7 @@ class App {
       console.log('Model loaded, starting detection');
 
       // Draw initial silhouette
+      console.log('Drawing initial silhouette, overlay:', this.overlayCanvas?.width, this.overlayCanvas?.height, 'video:', this.video?.videoWidth, this.video?.videoHeight);
       this.clearDetections();
 
       // Start detection loop
@@ -207,9 +208,13 @@ class App {
     const cx = w - minBirdW * 1.5;
     const cy = h - minBirdH * 2;
 
+    if (w === 0 || h === 0) return;
+
     ctx.save();
-    ctx.globalAlpha = 0.25;
-    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#000000';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
 
     // Simple bird silhouette: body ellipse + head circle + beak + tail
     const bw = minBirdW;
@@ -219,32 +224,41 @@ class App {
     ctx.beginPath();
     ctx.ellipse(cx, cy, bw * 0.5, bh * 0.3, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
 
     // Head
     ctx.beginPath();
     ctx.arc(cx + bw * 0.4, cy - bh * 0.25, bw * 0.22, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
 
     // Beak
     ctx.beginPath();
     ctx.moveTo(cx + bw * 0.6, cy - bh * 0.3);
     ctx.lineTo(cx + bw * 0.8, cy - bh * 0.25);
     ctx.lineTo(cx + bw * 0.6, cy - bh * 0.2);
+    ctx.closePath();
     ctx.fill();
+    ctx.stroke();
 
     // Tail
     ctx.beginPath();
     ctx.moveTo(cx - bw * 0.45, cy - bh * 0.1);
     ctx.lineTo(cx - bw * 0.75, cy - bh * 0.35);
     ctx.lineTo(cx - bw * 0.45, cy + bh * 0.1);
+    ctx.closePath();
     ctx.fill();
+    ctx.stroke();
 
     // Label
-    ctx.globalAlpha = 0.35;
-    ctx.font = '11px sans-serif';
+    ctx.globalAlpha = 0.6;
+    ctx.font = 'bold 12px sans-serif';
     ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
     ctx.textAlign = 'center';
-    ctx.fillText('min size', cx, cy + bh * 0.55);
+    ctx.strokeText('min size', cx, cy + bh * 0.7);
+    ctx.fillText('min size', cx, cy + bh * 0.7);
 
     // Show current zoom level if zoomed
     if (this.currentZoom > 1.05) {

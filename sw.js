@@ -1,6 +1,6 @@
 // Service Worker for Bird Watcher PWA
 
-const CACHE_NAME = 'birdwatcher-v4';
+const CACHE_NAME = 'birdwatcher-v5';
 
 const STATIC_ASSETS = [
   '/',
