@@ -59,7 +59,13 @@ export class BirdDetector {
    * @param {HTMLVideoElement|HTMLCanvasElement|HTMLImageElement} source
    * @returns {Promise<Array<{ class: string, score: number, bbox: number[] }>>}
    */
-  async detect(source) {
+  /**
+   * Detect objects using sliding window over the full frame.
+   * @param {HTMLVideoElement|HTMLCanvasElement|HTMLImageElement} source
+   * @param {number} softwareZoom - Software zoom level (1 = no zoom, crops center)
+   * @returns {Promise<Array<{ class: string, score: number, bbox: number[] }>>}
+   */
+  async detect(source, softwareZoom = 1) {
     if (!this.model) {
       throw new Error('Model not loaded. Call load() first.');
     }
@@ -67,19 +73,50 @@ export class BirdDetector {
     const srcWidth = source.videoWidth || source.width;
     const srcHeight = source.videoHeight || source.height;
 
-    // Single tile (grid=1): just run on the whole frame
-    if (this.tileGrid <= 1) {
-      const predictions = await this.model.detect(source);
-      return this.filterPredictions(predictions);
+    // Apply software zoom by cropping center of frame
+    let detectSource = source;
+    let cropOffsetX = 0;
+    let cropOffsetY = 0;
+    let cropW = srcWidth;
+    let cropH = srcHeight;
+
+    if (softwareZoom > 1) {
+      cropW = Math.round(srcWidth / softwareZoom);
+      cropH = Math.round(srcHeight / softwareZoom);
+      cropOffsetX = Math.round((srcWidth - cropW) / 2);
+      cropOffsetY = Math.round((srcHeight - cropH) / 2);
+
+      // Create cropped canvas
+      if (!this._zoomCropCanvas) {
+        this._zoomCropCanvas = document.createElement('canvas');
+        this._zoomCropCtx = this._zoomCropCanvas.getContext('2d');
+      }
+      this._zoomCropCanvas.width = cropW;
+      this._zoomCropCanvas.height = cropH;
+      this._zoomCropCtx.drawImage(source, cropOffsetX, cropOffsetY, cropW, cropH, 0, 0, cropW, cropH);
+      detectSource = this._zoomCropCanvas;
     }
 
-    // Multi-tile sliding window
+    // Single tile (grid=1): just run on the (possibly cropped) frame
+    if (this.tileGrid <= 1) {
+      const predictions = await this.model.detect(detectSource);
+      const filtered = this.filterPredictions(predictions);
+      // Map back to original frame coords if cropped
+      if (softwareZoom > 1) {
+        filtered.forEach(d => { d.bbox[0] += cropOffsetX; d.bbox[1] += cropOffsetY; });
+      }
+      return filtered;
+    }
+
+    // Multi-tile sliding window on the (possibly cropped) source
     const grid = this.tileGrid;
     const overlap = this.tileOverlap;
+    const detectW = detectSource.width || detectSource.videoWidth;
+    const detectH = detectSource.height || detectSource.videoHeight;
 
     // Tile dimensions with overlap
-    const tileW = Math.ceil(srcWidth / (grid - (grid - 1) * overlap));
-    const tileH = Math.ceil(srcHeight / (grid - (grid - 1) * overlap));
+    const tileW = Math.ceil(detectW / (grid - (grid - 1) * overlap));
+    const tileH = Math.ceil(detectH / (grid - (grid - 1) * overlap));
     const stepX = Math.floor(tileW * (1 - overlap));
     const stepY = Math.floor(tileH * (1 - overlap));
 
@@ -95,12 +132,12 @@ export class BirdDetector {
 
     for (let row = 0; row < grid; row++) {
       for (let col = 0; col < grid; col++) {
-        const sx = Math.min(col * stepX, srcWidth - tileW);
-        const sy = Math.min(row * stepY, srcHeight - tileH);
+        const sx = Math.min(col * stepX, detectW - tileW);
+        const sy = Math.min(row * stepY, detectH - tileH);
 
-        // Draw tile
+        // Draw tile from detect source (may be cropped)
         this.tileCtx.drawImage(
-          source,
+          detectSource,
           sx, sy, tileW, tileH,
           0, 0, tileW, tileH
         );
@@ -118,8 +155,8 @@ export class BirdDetector {
               class: pred.class,
               score: pred.score,
               bbox: [
-                pred.bbox[0] + sx,
-                pred.bbox[1] + sy,
+                pred.bbox[0] + sx + cropOffsetX,
+                pred.bbox[1] + sy + cropOffsetY,
                 pred.bbox[2],
                 pred.bbox[3],
               ],

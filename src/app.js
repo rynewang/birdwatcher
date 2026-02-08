@@ -187,7 +187,8 @@ class App {
         videoEl.style.transform = `scale(${zoom})`;
         videoEl.style.transformOrigin = 'center center';
       }
-      // Counter-scale the overlay so silhouette/boxes stay correct size
+      // Counter-scale the overlay so silhouette stays correct size
+      // (bounding boxes are in original frame coords, overlay matches video CSS scale)
       if (this.overlayCanvas) {
         this.overlayCanvas.style.transform = `scale(${1 / zoom})`;
         this.overlayCanvas.style.transformOrigin = 'center center';
@@ -359,7 +360,9 @@ class App {
 
     try {
       // Get full detection results with bounding boxes
-      const detections = await this.birdDetector.detect(this.video);
+      // Pass software zoom so detection crops the frame on iOS
+      const swZoom = this.useHardwareZoom ? 1 : this.currentZoom;
+      const detections = await this.birdDetector.detect(this.video, swZoom);
       const hasBird = detections.length > 0;
 
       // Draw bounding boxes
