@@ -100,12 +100,21 @@ export class BirdDetector {
     // Single tile (grid=1): just run on the (possibly cropped) frame
     if (this.tileGrid <= 1) {
       const predictions = await this.model.detect(detectSource);
-      const filtered = this.filterPredictions(predictions);
-      // Map back to original frame coords if cropped
-      if (softwareZoom > 1) {
-        filtered.forEach(d => { d.bbox[0] += cropOffsetX; d.bbox[1] += cropOffsetY; });
+      const confirmed = [];
+      const tentative = [];
+      for (const pred of predictions) {
+        if (!this.targetClasses.includes(pred.class)) continue;
+        const det = { class: pred.class, score: pred.score, bbox: [...pred.bbox] };
+        if (softwareZoom > 1) { det.bbox[0] += cropOffsetX; det.bbox[1] += cropOffsetY; }
+        if (pred.score >= this.confidenceThreshold) {
+          confirmed.push(det);
+        } else {
+          det.belowThreshold = true;
+          tentative.push(det);
+        }
       }
-      return filtered;
+      confirmed.tentative = tentative;
+      return confirmed;
     }
 
     // Multi-tile sliding window on the (possibly cropped) source
@@ -149,9 +158,8 @@ export class BirdDetector {
 
         // Map bbox back to full-frame coordinates
         for (const pred of predictions) {
-          if (this.targetClasses.includes(pred.class) &&
-              pred.score >= this.confidenceThreshold) {
-            allDetections.push({
+          if (this.targetClasses.includes(pred.class)) {
+            const det = {
               class: pred.class,
               score: pred.score,
               bbox: [
@@ -160,14 +168,22 @@ export class BirdDetector {
                 pred.bbox[2],
                 pred.bbox[3],
               ],
-            });
+              belowThreshold: pred.score < this.confidenceThreshold,
+            };
+            allDetections.push(det);
           }
         }
       }
     }
 
-    // Merge overlapping detections
-    return this.nms(allDetections);
+    // Merge overlapping detections (NMS on all, then split)
+    const merged = this.nms(allDetections);
+    // Confirmed = above threshold, tentative = below threshold
+    const confirmed = merged.filter(d => !d.belowThreshold);
+    const tentative = merged.filter(d => d.belowThreshold);
+    // Attach tentative detections to the result array
+    confirmed.tentative = tentative;
+    return confirmed;
   }
 
   /**

@@ -288,7 +288,7 @@ class App {
     ctx.restore();
   }
 
-  drawDetections(detections) {
+  drawDetections(detections, tentative = []) {
     if (!this.overlayCtx || !this.video) return;
 
     // Update canvas size to match video
@@ -302,22 +302,39 @@ class App {
     // Draw bird silhouette size reference
     this.drawBirdSilhouette(ctx, w, h);
 
+    // Draw tentative (below threshold) detections in grey
+    tentative.forEach(det => {
+      const [x, y, width, height] = det.bbox;
+      const label = `${det.class}? ${Math.round(det.score * 100)}%`;
+
+      ctx.strokeStyle = '#888888';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(x, y, width, height);
+      ctx.setLineDash([]);
+
+      ctx.font = 'bold 14px sans-serif';
+      const textWidth = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(128, 128, 128, 0.7)';
+      ctx.fillRect(x, y - 22, textWidth + 8, 22);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, x + 4, y - 5);
+    });
+
+    // Draw confirmed detections in green
     detections.forEach(det => {
       const [x, y, width, height] = det.bbox;
       const label = `${det.class} ${Math.round(det.score * 100)}%`;
 
-      // Draw bounding box
       ctx.strokeStyle = '#4ecca3';
       ctx.lineWidth = 3;
       ctx.strokeRect(x, y, width, height);
 
-      // Draw label background
       ctx.font = 'bold 16px sans-serif';
       const textWidth = ctx.measureText(label).width;
       ctx.fillStyle = '#4ecca3';
       ctx.fillRect(x, y - 24, textWidth + 8, 24);
 
-      // Draw label text
       ctx.fillStyle = '#000';
       ctx.fillText(label, x + 4, y - 6);
     });
@@ -369,9 +386,10 @@ class App {
       const detections = await this.birdDetector.detect(this.video, swZoom);
       const hasBird = detections.length > 0;
 
-      // Draw bounding boxes
-      if (hasBird) {
-        this.drawDetections(detections);
+      // Draw bounding boxes (confirmed + tentative)
+      const hasTentative = detections.tentative && detections.tentative.length > 0;
+      if (hasBird || hasTentative) {
+        this.drawDetections(detections, detections.tentative || []);
       } else {
         this.clearDetections();
       }
