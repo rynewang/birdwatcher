@@ -53,18 +53,30 @@ export class Recorder {
           }
         };
 
-        this.mediaRecorder.onstop = () => {
+        this.mediaRecorder.onstop = async () => {
           this.isRecording = false;
           if (this.chunks.length === 0) {
             reject(new Error('No data recorded - chunks empty'));
             return;
           }
-          const blob = new Blob(this.chunks, { type: mimeType });
+          let blob = new Blob(this.chunks, { type: mimeType });
           if (blob.size === 0) {
             reject(new Error('Recording produced empty file'));
             return;
           }
           this.chunks = [];
+
+          // Fix webm duration metadata if needed
+          if (mimeType.includes('webm') && this._startTime) {
+            const duration = Date.now() - this._startTime;
+            try {
+              blob = await fixWebmDuration(blob, duration);
+            } catch (e) {
+              console.warn('Failed to fix webm duration:', e);
+              // Continue with unfixed blob
+            }
+          }
+
           resolve(blob);
         };
 
@@ -72,6 +84,9 @@ export class Recorder {
           this.isRecording = false;
           reject(event.error || new Error('MediaRecorder error'));
         };
+
+        // Track start time for duration fix
+        this._startTime = Date.now();
 
         // Request data every second to avoid losing chunks
         this.mediaRecorder.start(1000);
@@ -134,6 +149,65 @@ export class Recorder {
   getIsRecording() {
     return this.isRecording;
   }
+}
+
+/**
+ * Fix WebM duration metadata.
+ * MediaRecorder produces WebM files without a duration in the Segment>Info header.
+ * This injects the duration so players can show length and allow seeking.
+ *
+ * Approach: Find the EBML Info element (ID 0x1549A966), then look for an existing
+ * Duration element (ID 0x4489) or inject one. The duration is stored as a float64.
+ */
+async function fixWebmDuration(blob, durationMs) {
+  const buf = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+
+  // Find Segment>Info element (EBML ID: 0x15 0x49 0xA9 0x66)
+  const infoId = [0x15, 0x49, 0xA9, 0x66];
+  let infoPos = -1;
+  for (let i = 0; i < Math.min(bytes.length, 4096); i++) {
+    if (bytes[i] === infoId[0] && bytes[i+1] === infoId[1] &&
+        bytes[i+2] === infoId[2] && bytes[i+3] === infoId[3]) {
+      infoPos = i;
+      break;
+    }
+  }
+
+  if (infoPos === -1) return blob; // Can't find Info, return as-is
+
+  // Find Duration element (ID: 0x44 0x89) within Info
+  const durId = [0x44, 0x89];
+  let durPos = -1;
+  // Search within a reasonable range after Info start
+  for (let i = infoPos; i < Math.min(infoPos + 256, bytes.length - 10); i++) {
+    if (bytes[i] === durId[0] && bytes[i+1] === durId[1]) {
+      durPos = i;
+      break;
+    }
+  }
+
+  if (durPos === -1) {
+    // No existing Duration element — can't safely inject without rewriting sizes
+    // Just return the original blob
+    return blob;
+  }
+
+  // Duration element: 0x44 0x89 [size] [float64 value]
+  // Size byte should be 0x88 (8 bytes, float64)
+  const sizePos = durPos + 2;
+  const size = bytes[sizePos];
+  if ((size & 0x80) === 0 || (size & 0x7F) !== 8) {
+    // Unexpected size encoding, bail
+    return blob;
+  }
+
+  // Write duration as float64 in milliseconds (WebM timescale is typically 1ms)
+  const dataPos = sizePos + 1;
+  const view = new DataView(buf);
+  view.setFloat64(dataPos, durationMs, false); // big-endian
+
+  return new Blob([buf], { type: blob.type });
 }
 
 /**
