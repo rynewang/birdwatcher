@@ -257,7 +257,7 @@ class App {
 
     // Label
     ctx.globalAlpha = 0.6;
-    ctx.font = 'bold 12px sans-serif';
+    ctx.font = 'bold 18px sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 3;
