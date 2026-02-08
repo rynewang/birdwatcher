@@ -204,11 +204,10 @@ class App {
     const minBirdW = (30 / 300) * tileW;
     const minBirdH = (40 / 300) * tileH; // birds are taller than wide
 
-    // Account for current zoom — zoomed in means smaller birds are detectable,
-    // so the silhouette should grow to show the real-world size coverage
-    const zoom = this.currentZoom || 1;
-    const effectiveMinBirdW = minBirdW * zoom;
-    const effectiveMinBirdH = minBirdH * zoom;
+    // Silhouette stays fixed pixel size — it represents the model's minimum
+    // detectable size in the frame. Zoom in until the real bird is bigger than this.
+    const effectiveMinBirdW = minBirdW;
+    const effectiveMinBirdH = minBirdH;
 
     // Center of screen
     const cx = w / 2;
