@@ -204,9 +204,14 @@ class App {
     const minBirdW = (30 / 300) * tileW;
     const minBirdH = (40 / 300) * tileH; // birds are taller than wide
 
-    // Draw silhouette in bottom-right area
-    const cx = w - minBirdW * 1.5;
-    const cy = h - minBirdH * 2;
+    // Account for current zoom — zoomed in means bigger birds in frame
+    const zoom = this.currentZoom || 1;
+    const effectiveMinBirdW = minBirdW / zoom;
+    const effectiveMinBirdH = minBirdH / zoom;
+
+    // Center of screen
+    const cx = w / 2;
+    const cy = h / 2;
 
     if (w === 0 || h === 0) return;
 
@@ -217,8 +222,8 @@ class App {
     ctx.lineWidth = 2;
 
     // Simple bird silhouette: body ellipse + head circle + beak + tail
-    const bw = minBirdW;
-    const bh = minBirdH;
+    const bw = effectiveMinBirdW;
+    const bh = effectiveMinBirdH;
 
     // Body
     ctx.beginPath();
@@ -257,8 +262,9 @@ class App {
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 3;
     ctx.textAlign = 'center';
-    ctx.strokeText('min size', cx, cy + bh * 0.7);
-    ctx.fillText('min size', cx, cy + bh * 0.7);
+    const label = 'birds this size can be detected';
+    ctx.strokeText(label, cx, cy + bh * 0.9);
+    ctx.fillText(label, cx, cy + bh * 0.9);
 
     // Show current zoom level if zoomed
     if (this.currentZoom > 1.05) {
