@@ -1,7 +1,7 @@
 // Main app orchestration
 
 import { CONFIG } from './config.js';
-import { initCamera, stopCamera, CameraError } from './camera.js';
+import { initCamera, stopCamera, CameraError, getZoomCapabilities, setZoom } from './camera.js';
 import { MotionDetector } from './motion-detector.js';
 import { BirdDetector } from './bird-detector.js';
 import { Recorder, generateThumbnail } from './recorder.js';
@@ -28,6 +28,10 @@ class App {
     this.recorder = null;
     this.overlayCanvas = null;
     this.overlayCtx = null;
+    this.zoomCapabilities = null;
+    this.currentZoom = 1;
+    this.pinchStartDistance = null;
+    this.pinchStartZoom = null;
   }
 
   async init() {
@@ -113,6 +117,13 @@ class App {
     this.overlayCanvas = document.getElementById('detection-overlay');
     this.overlayCtx = this.overlayCanvas.getContext('2d');
 
+    // Initialize zoom
+    this.zoomCapabilities = getZoomCapabilities(stream);
+    if (this.zoomCapabilities.supported) {
+      this.currentZoom = this.zoomCapabilities.current;
+      this.setupPinchToZoom();
+    }
+
     // Initialize recorder with bitrate from settings
     this.recorder = new Recorder(stream, { bitrate: this.ui.getBitrate() });
   }
@@ -122,6 +133,109 @@ class App {
       this.overlayCanvas.width = this.video.videoWidth;
       this.overlayCanvas.height = this.video.videoHeight;
     }
+  }
+
+  setupPinchToZoom() {
+    const el = this.overlayCanvas;
+    if (!el) return;
+
+    el.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        this.pinchStartDistance = this.getTouchDistance(e.touches);
+        this.pinchStartZoom = this.currentZoom;
+      }
+    }, { passive: false });
+
+    el.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && this.pinchStartDistance) {
+        e.preventDefault();
+        const dist = this.getTouchDistance(e.touches);
+        const scale = dist / this.pinchStartDistance;
+        const { min, max } = this.zoomCapabilities;
+        const newZoom = Math.max(min, Math.min(max, this.pinchStartZoom * scale));
+        this.applyZoom(newZoom);
+      }
+    }, { passive: false });
+
+    el.addEventListener('touchend', () => {
+      this.pinchStartDistance = null;
+      this.pinchStartZoom = null;
+    });
+  }
+
+  getTouchDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  async applyZoom(zoom) {
+    if (!this.stream) return;
+    const ok = await setZoom(this.stream, zoom);
+    if (ok) {
+      this.currentZoom = zoom;
+    }
+  }
+
+  /**
+   * Draw a semi-transparent bird silhouette as a size reference.
+   * Shows the minimum detectable bird size for current tiling config.
+   */
+  drawBirdSilhouette(ctx, w, h) {
+    // Minimum detectable size: ~30px in 300x300 model input
+    // With tiling, each tile covers w/grid x h/grid of the frame
+    const grid = this.birdDetector?.tileGrid || 3;
+    const tileW = w / grid;
+    const tileH = h / grid;
+    // 30px in 300x300 maps to this many pixels in the tile
+    const minBirdW = (30 / 300) * tileW;
+    const minBirdH = (40 / 300) * tileH; // birds are taller than wide
+
+    // Draw silhouette in bottom-right area
+    const cx = w - minBirdW * 1.5;
+    const cy = h - minBirdH * 2;
+
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = '#ffffff';
+
+    // Simple bird silhouette: body ellipse + head circle + beak + tail
+    const bw = minBirdW;
+    const bh = minBirdH;
+
+    // Body
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, bw * 0.5, bh * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(cx + bw * 0.4, cy - bh * 0.25, bw * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Beak
+    ctx.beginPath();
+    ctx.moveTo(cx + bw * 0.6, cy - bh * 0.3);
+    ctx.lineTo(cx + bw * 0.8, cy - bh * 0.25);
+    ctx.lineTo(cx + bw * 0.6, cy - bh * 0.2);
+    ctx.fill();
+
+    // Tail
+    ctx.beginPath();
+    ctx.moveTo(cx - bw * 0.45, cy - bh * 0.1);
+    ctx.lineTo(cx - bw * 0.75, cy - bh * 0.35);
+    ctx.lineTo(cx - bw * 0.45, cy + bh * 0.1);
+    ctx.fill();
+
+    // Label
+    ctx.globalAlpha = 0.35;
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.fillText('min size', cx, cy + bh * 0.55);
+
+    ctx.restore();
   }
 
   drawDetections(detections) {
@@ -134,6 +248,9 @@ class App {
     const w = this.overlayCanvas.width;
     const h = this.overlayCanvas.height;
     ctx.clearRect(0, 0, w, h);
+
+    // Draw bird silhouette size reference
+    this.drawBirdSilhouette(ctx, w, h);
 
     detections.forEach(det => {
       const [x, y, width, height] = det.bbox;
@@ -158,7 +275,11 @@ class App {
 
   clearDetections() {
     if (this.overlayCtx && this.overlayCanvas) {
-      this.overlayCtx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
+      const w = this.overlayCanvas.width;
+      const h = this.overlayCanvas.height;
+      this.overlayCtx.clearRect(0, 0, w, h);
+      // Keep silhouette visible
+      this.drawBirdSilhouette(this.overlayCtx, w, h);
     }
   }
 

@@ -64,6 +64,47 @@ export async function getCameras() {
 }
 
 /**
+ * Get zoom capabilities of the video track
+ * @param {MediaStream} stream
+ * @returns {{ supported: boolean, min: number, max: number, step: number, current: number }}
+ */
+export function getZoomCapabilities(stream) {
+  const track = stream.getVideoTracks()[0];
+  if (!track) return { supported: false };
+
+  const capabilities = track.getCapabilities?.();
+  const settings = track.getSettings?.();
+
+  if (!capabilities?.zoom) return { supported: false };
+
+  return {
+    supported: true,
+    min: capabilities.zoom.min,
+    max: capabilities.zoom.max,
+    step: capabilities.zoom.step || 0.1,
+    current: settings?.zoom ?? capabilities.zoom.min,
+  };
+}
+
+/**
+ * Set camera zoom level
+ * @param {MediaStream} stream
+ * @param {number} zoom
+ * @returns {Promise<boolean>}
+ */
+export async function setZoom(stream, zoom) {
+  const track = stream.getVideoTracks()[0];
+  if (!track) return false;
+
+  try {
+    await track.applyConstraints({ advanced: [{ zoom }] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Custom error class for camera errors
  */
 export class CameraError extends Error {
