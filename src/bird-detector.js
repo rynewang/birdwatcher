@@ -102,8 +102,10 @@ export class BirdDetector {
       const predictions = await this.model.detect(detectSource);
       const confirmed = [];
       const tentative = [];
+      const tentativeFloor = Math.max(0.15, this.confidenceThreshold * 0.4);
       for (const pred of predictions) {
         if (!this.targetClasses.includes(pred.class)) continue;
+        if (pred.score < tentativeFloor) continue;
         const det = { class: pred.class, score: pred.score, bbox: [...pred.bbox] };
         if (softwareZoom > 1) { det.bbox[0] += cropOffsetX; det.bbox[1] += cropOffsetY; }
         if (pred.score >= this.confidenceThreshold) {
@@ -144,7 +146,8 @@ export class BirdDetector {
         const sx = Math.min(col * stepX, detectW - tileW);
         const sy = Math.min(row * stepY, detectH - tileH);
 
-        // Draw tile from detect source (may be cropped)
+        // Clear tile canvas and draw from detect source
+        this.tileCtx.clearRect(0, 0, tileW, tileH);
         this.tileCtx.drawImage(
           detectSource,
           sx, sy, tileW, tileH,
@@ -157,8 +160,10 @@ export class BirdDetector {
         await new Promise(resolve => setTimeout(resolve, 0));
 
         // Map bbox back to full-frame coordinates
+        // Minimum score floor for tentative detections (avoid noise)
+        const tentativeFloor = Math.max(0.15, this.confidenceThreshold * 0.4);
         for (const pred of predictions) {
-          if (this.targetClasses.includes(pred.class)) {
+          if (this.targetClasses.includes(pred.class) && pred.score >= tentativeFloor) {
             const det = {
               class: pred.class,
               score: pred.score,
