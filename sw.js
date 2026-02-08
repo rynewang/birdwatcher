@@ -1,6 +1,6 @@
 // Service Worker for Bird Watcher PWA
 
-const CACHE_NAME = 'birdwatcher-v14';
+const CACHE_NAME = 'birdwatcher-v15';
 
 const STATIC_ASSETS = [
   '/',
@@ -62,26 +62,20 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      return fetch(event.request).then((response) => {
-        // Don't cache non-success responses
-        if (!response || response.status !== 200) {
-          return response;
+    fetch(event.request)
+      .then((response) => {
+        // Got network response - cache it and return
+        if (response && response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
         }
-
-        // Clone response for caching
-        const responseToCache = response.clone();
-
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-
         return response;
-      });
-    })
+      })
+      .catch(() => {
+        // Network failed - fall back to cache (offline support)
+        return caches.match(event.request);
+      })
   );
 });
