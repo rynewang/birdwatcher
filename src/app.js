@@ -600,9 +600,28 @@ class App {
     this.ui.setStorageInfo(stats);
     this.ui.renderClips(clips, {
       onPlay: (clip) => this.playClip(clip),
+      onShare: (clip) => this.shareClip(clip),
       onDownload: (clip) => this.downloadClip(clip),
       onDelete: (clip) => this.deleteClipFromGrid(clip),
     });
+  }
+
+  async shareClip(clip) {
+    const ext = clip.blob.type.includes('mp4') ? 'mp4' : 'webm';
+    const filename = `bird-${clip.timestamp}.${ext}`;
+    const file = new File([clip.blob], filename, { type: clip.blob.type });
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Bird clip' });
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        // Fall through to download
+      }
+    }
+    // Fallback: just download
+    this.downloadClip(clip);
   }
 
   async downloadClip(clip) {

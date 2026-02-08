@@ -240,6 +240,15 @@ export class UI {
         if (handlers.onPlay) handlers.onPlay(clip);
       });
 
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'clip-btn clip-btn-share';
+      shareBtn.textContent = '📤';
+      shareBtn.title = 'Share';
+      shareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (handlers.onShare) handlers.onShare(clip);
+      });
+
       const downloadBtn = document.createElement('button');
       downloadBtn.className = 'clip-btn';
       downloadBtn.textContent = '⬇';
@@ -259,6 +268,7 @@ export class UI {
       });
 
       actions.appendChild(playBtn);
+      actions.appendChild(shareBtn);
       actions.appendChild(downloadBtn);
       actions.appendChild(deleteBtn);
 
