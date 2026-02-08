@@ -87,7 +87,7 @@
             <button id="clear-cache-btn" class="btn btn-secondary btn-small">Clear</button>
           </div>
           <div class="setting-row">
-            <label id="version-label" style="font-size: 11px; opacity: 0.5;">...</label>
+            <label id="version-label" style="font-size: 11px; opacity: 0.5;">v17 (no-sw)</label>
           </div>
         </div>
       </div>
@@ -166,23 +166,15 @@
   <script type="module" src="src/app.js"></script>
 
   <script>
-    // Show SW cache version in settings
-    if ('caches' in window) {
-      caches.keys().then(names => {
-        const bw = names.find(n => n.startsWith('birdwatcher-'));
-        if (bw) document.getElementById('version-label').textContent = bw.replace('birdwatcher-', '');
-      });
-    }
-    // Force update: unregister old service workers and re-register with cache-busting
+    // Remove any lingering service workers — we don't need offline caching
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(regs => {
         regs.forEach(reg => reg.unregister());
-      }).then(() => {
-        // Re-register with updateViaCache: 'none' to bypass HTTP cache for sw.js
-        navigator.serviceWorker.register('/birdwatcher/sw.js', {
-          updateViaCache: 'none'
-        });
       });
+      // Clear old caches too
+      if ('caches' in window) {
+        caches.keys().then(names => names.forEach(n => caches.delete(n)));
+      }
     }
   </script>
 </body>
