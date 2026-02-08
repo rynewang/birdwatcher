@@ -10,6 +10,7 @@ export class UI {
       bitrate: 2500000,
       sensitivity: 0.35,
       tileGrid: 3,
+      maxDuration: 600000,
     };
   }
 
@@ -52,6 +53,7 @@ export class UI {
       bitrateSelect: document.getElementById('bitrate'),
       sensitivitySelect: document.getElementById('sensitivity'),
       tileGridSelect: document.getElementById('tile-grid'),
+      maxDurationSelect: document.getElementById('max-duration'),
       clearCacheBtn: document.getElementById('clear-cache-btn'),
 
       // Welcome popup
@@ -392,6 +394,9 @@ export class UI {
     if (this.elements.tileGridSelect) {
       this.elements.tileGridSelect.value = this.settings.tileGrid;
     }
+    if (this.elements.maxDurationSelect) {
+      this.elements.maxDurationSelect.value = this.settings.maxDuration || 600000;
+    }
   }
 
   /**
@@ -441,6 +446,10 @@ export class UI {
 
   getTileGrid() {
     return this.settings.tileGrid;
+  }
+
+  getMaxDuration() {
+    return this.settings.maxDuration || 600000;
   }
 
   /**
@@ -545,6 +554,17 @@ export class UI {
         this.saveSettings();
         if (handlers.tileGridChange) {
           handlers.tileGridChange(this.settings.tileGrid);
+        }
+      });
+    }
+
+    const { maxDurationSelect } = this.elements;
+    if (maxDurationSelect) {
+      maxDurationSelect.addEventListener('change', (e) => {
+        this.settings.maxDuration = parseInt(e.target.value);
+        this.saveSettings();
+        if (handlers.maxDurationChange) {
+          handlers.maxDurationChange(this.settings.maxDuration);
         }
       });
     }

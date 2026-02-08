@@ -76,6 +76,9 @@ class App {
             this.birdDetector.tileGrid = grid;
           }
         },
+        maxDurationChange: (duration) => {
+          // Will take effect on next recording
+        },
       });
 
       // Initialize camera
@@ -428,13 +431,16 @@ class App {
     // Start timer display
     this.ui.startRecordingTimer();
 
-    // Set max duration auto-stop
-    this.maxDurationTimeout = setTimeout(() => {
-      if (this.state === 'recording') {
-        this.ui.showLog('Max duration reached (' + Math.round(CONFIG.MAX_RECORDING_DURATION / 60000) + 'min), auto-saving...');
-        this.maxDurationAutoStop();
-      }
-    }, CONFIG.MAX_RECORDING_DURATION);
+    // Set max duration auto-stop (0 = no limit)
+    const maxDuration = this.ui.getMaxDuration();
+    if (maxDuration > 0) {
+      this.maxDurationTimeout = setTimeout(() => {
+        if (this.state === 'recording') {
+          this.ui.showLog('Max duration reached (' + Math.round(maxDuration / 60000) + 'min), auto-saving...');
+          this.maxDurationAutoStop();
+        }
+      }, maxDuration);
+    }
 
     try {
       // Start indefinite recording - we control when it stops

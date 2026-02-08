@@ -83,11 +83,21 @@
             </select>
           </div>
           <div class="setting-row">
+            <label for="max-duration">Max clip length</label>
+            <select id="max-duration">
+              <option value="60000">1 min</option>
+              <option value="300000">5 min</option>
+              <option value="600000" selected>10 min</option>
+              <option value="1800000">30 min</option>
+              <option value="0">No limit</option>
+            </select>
+          </div>
+          <div class="setting-row">
             <label>Clear cache & reload [dev only]</label>
             <button id="clear-cache-btn" class="btn btn-secondary btn-small">Clear</button>
           </div>
           <div class="setting-row">
-            <label id="version-label" style="font-size: 11px; opacity: 0.5;">v17 (no-sw)</label>
+            <label id="version-label" style="font-size: 11px; opacity: 0.5;">v18</label>
           </div>
         </div>
       </div>
