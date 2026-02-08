@@ -187,6 +187,11 @@ class App {
         videoEl.style.transform = `scale(${zoom})`;
         videoEl.style.transformOrigin = 'center center';
       }
+      // Counter-scale the overlay so silhouette/boxes stay correct size
+      if (this.overlayCanvas) {
+        this.overlayCanvas.style.transform = `scale(${1 / zoom})`;
+        this.overlayCanvas.style.transformOrigin = 'center center';
+      }
     }
   }
 
