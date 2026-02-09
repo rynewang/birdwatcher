@@ -58,6 +58,7 @@ class App {
         back: () => this.showCamera(),
         closePlayer: () => this.ui.closePlayer(),
         download: () => this.downloadCurrentClip(),
+        playerShare: () => this.shareCurrentClip(),
         delete: () => this.deleteCurrentClip(),
         toggle: () => this.toggleDetection(),
         stop: () => this.stopRecordingEarly(),
@@ -706,6 +707,11 @@ class App {
   playClip(clip) {
     this.currentClip = clip;
     this.ui.playClip(clip.blob);
+  }
+
+  async shareCurrentClip() {
+    if (!this.currentClip) return;
+    await this.shareClip(this.currentClip);
   }
 
   async downloadCurrentClip() {

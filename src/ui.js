@@ -44,6 +44,8 @@ export class UI {
       closePlayerBtn: document.getElementById('close-player-btn'),
       downloadBtn: document.getElementById('download-btn'),
       deleteBtn: document.getElementById('delete-btn'),
+      playerShareBtn: document.getElementById('player-share-btn'),
+      playerDownloadBtn: document.getElementById('player-download-btn'),
 
       // Settings elements
       settingsBtn: document.getElementById('settings-btn'),
@@ -498,6 +500,14 @@ export class UI {
 
     if (deleteBtn && handlers.delete) {
       deleteBtn.addEventListener('click', handlers.delete);
+    }
+
+    const { playerShareBtn, playerDownloadBtn } = this.elements;
+    if (playerShareBtn && handlers.playerShare) {
+      playerShareBtn.addEventListener('click', handlers.playerShare);
+    }
+    if (playerDownloadBtn && handlers.download) {
+      playerDownloadBtn.addEventListener('click', handlers.download);
     }
 
     if (toggleBtn && handlers.toggle) {

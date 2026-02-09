@@ -228,6 +228,11 @@ export async function generateThumbnail(videoBlob) {
     }, 5000);
 
     video.onloadeddata = () => {
+      // Seek to 1s to avoid dark first frame (camera warmup)
+      video.currentTime = Math.min(1, video.duration || 1);
+    };
+
+    video.onseeked = () => {
       clearTimeout(timeout);
       canvas.width = 160;
       canvas.height = 90;

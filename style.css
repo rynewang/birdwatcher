@@ -261,6 +261,11 @@ html, body {
   color: var(--text-secondary);
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 /* Clips Grid */
 .clips-grid {
   flex: 1;
@@ -298,7 +303,7 @@ html, body {
   left: 0;
   right: 0;
   padding: 8px;
-  padding-bottom: 36px;
+  padding-bottom: 48px;
   background: linear-gradient(transparent, rgba(0,0,0,0.8));
   font-size: 11px;
   color: var(--text-secondary);
@@ -315,15 +320,18 @@ html, body {
 }
 
 .clip-btn {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   border: none;
   border-radius: 50%;
-  background: rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.25);
   color: white;
-  font-size: 12px;
+  font-size: 16px;
   cursor: pointer;
   transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .clip-btn:hover {
